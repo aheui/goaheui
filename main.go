@@ -115,7 +115,11 @@ type Storage struct {
 	Memory      []int
 }
 
-func (s *Storage) pop() int {
+func (s *Storage) pop() (int, bool) {
+	if len(s.Memory) == 0 {
+		return 0, false
+	}
+
 	var x int
 	var xs []int
 
@@ -127,7 +131,7 @@ func (s *Storage) pop() int {
 		s.Memory = xs
 	}
 
-	return x
+	return x, true
 }
 
 func (s *Storage) push(val int) {
@@ -225,7 +229,7 @@ func initCodespace(input string) [][]Char {
 	for lineIdx, line := range lines {
 		codeSpace[lineIdx] = make([]Char, len(line)/3)
 		for charIdx, char := range line {
-			// TODO: why is index multiple of 3? (e.g. 3,6,9,...)
+			// WHY: why is index multiple of 3? (e.g. 3,6,9,...)
 			codeSpace[lineIdx][charIdx/3] = makeChar(char)
 		}
 	}
@@ -244,38 +248,104 @@ func (m *Machine) step(codeSpace [][]Char) int {
 		m.terminated = true
 
 		if len(m.CurrentStorage.Memory) > 0 {
-			return m.CurrentStorage.pop()
+			popped, _ := m.CurrentStorage.pop()
+			return popped
 		}
 
 		return 0
 	case 'ㄷ':
-		a, b := m.CurrentStorage.pop(), m.CurrentStorage.pop()
+		a, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+		b, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+
 		m.CurrentStorage.push(a + b)
 		break
 	case 'ㄸ':
-		a, b := m.CurrentStorage.pop(), m.CurrentStorage.pop()
+		a, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+		b, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+
 		m.CurrentStorage.push(a * b)
 		break
 	case 'ㄴ':
-		a, b := m.CurrentStorage.pop(), m.CurrentStorage.pop()
+		a, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+		b, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+
 		m.CurrentStorage.push(a / b)
 		break
 	case 'ㅌ':
-		a, b := m.CurrentStorage.pop(), m.CurrentStorage.pop()
+		a, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+		b, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+
 		m.CurrentStorage.push(a - b)
 		break
 	case 'ㄹ':
-		a, b := m.CurrentStorage.pop(), m.CurrentStorage.pop()
+		a, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+		b, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+
 		m.CurrentStorage.push(a % b)
 		break
 	case 'ㅁ':
-		popped := m.CurrentStorage.pop()
+		popped, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
 
 		switch currentChar.Tail {
 		case 'ㅇ':
-			fmt.Println(popped)
+			fmt.Printf("%d", popped)
 		case 'ㅎ':
-			fmt.Println(string(popped))
+			fmt.Printf("%s", string(popped))
 		}
 
 	case 'ㅂ':
@@ -299,7 +369,19 @@ func (m *Machine) step(codeSpace [][]Char) int {
 		m.CurrentStorage.push(i)
 
 	case 'ㅍ':
-		a, b := m.CurrentStorage.pop(), m.CurrentStorage.pop()
+		a, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+		b, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+
 		m.CurrentStorage.push(b)
 		m.CurrentStorage.push(a)
 
@@ -317,14 +399,19 @@ func (m *Machine) step(codeSpace [][]Char) int {
 		}
 
 	case 'ㅆ':
-		popped := m.CurrentStorage.pop()
+		popped, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
 
 		switch currentChar.Tail {
 		case 'ㅇ':
 			queue.push(popped)
 			break
 		case 'ㅎ':
-			// TODO: pipe
+			pipe.push(popped)
 			break
 		default:
 			stackIdx := stackIndices[currentChar.Tail]
@@ -332,7 +419,18 @@ func (m *Machine) step(codeSpace [][]Char) int {
 		}
 
 	case 'ㅈ':
-		a, b := m.CurrentStorage.pop(), m.CurrentStorage.pop()
+		a, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+		b, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
 
 		var res int
 		if b > a {
@@ -343,10 +441,18 @@ func (m *Machine) step(codeSpace [][]Char) int {
 
 		m.CurrentStorage.push(res)
 
-		//TODO
-		//	case 'ㅊ':
-		//		popped := m.CurrentStorage.pop()
-		//
+	case 'ㅊ':
+		popped, ok := m.CurrentStorage.pop()
+		if !ok {
+			m.dy = -m.dy
+			m.dx = -m.dx
+			break
+		}
+
+		if popped == 0 {
+			m.dy = -m.dy
+			m.dx = -m.dx
+		}
 	}
 
 	switch currentChar.Vowel {
@@ -458,7 +564,6 @@ func (m Machine) run(codeSpace [][]Char) int {
 
 func main() {
 	var codeSpace = initCodespace(helloWorld)
-	fmt.Printf("%+v\n", codeSpace)
 
 	machine.run(codeSpace)
 }
