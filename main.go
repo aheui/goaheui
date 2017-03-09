@@ -38,17 +38,84 @@ var helloWorld = `밤밣따빠밣밟따뿌
 뽑뽀멓멓더벓뻐뚠
 뽀덩벐멓뻐덕더벅`
 
+const (
+	SStack = iota
+	SQueue
+)
+
 type Char struct {
 	Lead  rune
 	Vowel rune
 	Tail  rune
 }
 
+var storages []Storage
+var KOREAN_OFFSET rune = 0xAC00
+
+type Storage struct {
+	StorageType int
+	Memory      []int
+}
+
+func (s Storage) pop() int {
+	if s.StorageType == SStack {
+		x, xs := s.Memory[len(s.Memory)-1], s.Memory[:len(s.Memory)-1]
+		s.Memory = xs
+		return x
+	}
+
+	x, xs := s.Memory[0], s.Memory[1:]
+	s.Memory = xs
+	return x
+}
+
+func (s Storage) push(val int) {
+	if s.StorageType == SStack {
+		s.Memory = append(s.Memory, val)
+	}
+
+	s.Memory = append([]int{val}, s.Memory...)
+}
+
+type Machine struct {
+	CurrentStorage Storage
+	xPos           int
+	yPos           int
+	dx             int
+	dy             int
+}
+
+var stacks []Storage
+var queue Storage
+var machine Machine
+
+func init() {
+	for i := 0; i < 26; i++ {
+		stack := Storage{
+			StorageType: SStack,
+			Memory:      []int{},
+		}
+
+		stacks = append(stacks, stack)
+	}
+
+	queue = Storage{
+		StorageType: SQueue,
+		Memory:      []int{},
+	}
+
+	machine = Machine{
+		CurrentStorage: stacks[0],
+		xPos:           0,
+		yPos:           0,
+		dx:             0,
+		dy:             1,
+	}
+}
+
 func validateAheuiChar(c rune) bool {
 	return c >= 0xAC00 && c <= 0xD7A3
 }
-
-var KOREAN_OFFSET rune = 0xAC00
 
 func makeChar(c rune) Char {
 	codeNum := c - KOREAN_OFFSET
@@ -89,11 +156,27 @@ func initCodespace(input string) [][]Char {
 	return codeSpace
 }
 
+func (m Machine) run(codeSpace [][]Char) {
+	currentChar := codeSpace[m.yPos][m.xPos]
+	fmt.Println(currentChar)
+
+	switch currentChar.Lead {
+	case 'ㅇ':
+		// noop
+		break
+	case 'ㅎ':
+		// TODO: pop
+		fmt.Println("Terminate")
+	case 'ㄷ':
+
+	case 'ㅁ':
+		m.CurrentStorage
+	}
+
+}
+
 func main() {
 	var codeSpace = initCodespace(helloWorld)
 
-	fmt.Printf("%+v", codeSpace)
-	for _, c := range codeSpace[0] {
-		fmt.Printf("%+v", c)
-	}
+	machine.run(codeSpace)
 }
