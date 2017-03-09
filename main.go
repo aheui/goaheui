@@ -5,6 +5,34 @@ import (
 	"strings"
 )
 
+var strokeCount = map[rune]int{
+	'ㄱ': 2,
+	'ㄴ': 2,
+	'ㄷ': 3,
+	'ㄹ': 5,
+	'ㅁ': 4,
+	'ㅂ': 4,
+	'ㅅ': 2,
+	'ㅈ': 3,
+	'ㅊ': 4,
+	'ㅋ': 3,
+	'ㅌ': 4,
+	'ㅍ': 4,
+	'ㄲ': 4,
+	'ㄳ': 4,
+	'ㄵ': 5,
+	'ㄶ': 5,
+	'ㄺ': 7,
+	'ㄻ': 9,
+	'ㄼ': 9,
+	'ㄽ': 7,
+	'ㄾ': 9,
+	'ㄿ': 9,
+	'ㅀ': 8,
+	'ㅄ': 6,
+	'ㅆ': 4,
+}
+
 var leadSounds = []rune{
 	'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ',
 	'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ',
@@ -170,13 +198,22 @@ func (m Machine) run(codeSpace [][]Char) {
 	case 'ㄷ':
 
 	case 'ㅁ':
-		m.CurrentStorage
-	}
+		popped := m.CurrentStorage.pop()
+		fmt.Println(popped)
+		switch currentChar.Tail {
+		case 'ㅇ':
+			fmt.Println(popped)
+		case 'ㅎ':
+			fmt.Println(string(popped))
+		}
 
+	case 'ㅂ':
+		m.CurrentStorage.push(1)
+	}
 }
 
 func main() {
-	var codeSpace = initCodespace(helloWorld)
+	var codeSpace = initCodespace("몽")
 
 	machine.run(codeSpace)
 }
