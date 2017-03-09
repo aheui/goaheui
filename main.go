@@ -98,6 +98,7 @@ var helloWorld = `밤밣따빠밣밟따뿌
 const (
 	SStack = iota
 	SQueue
+	SPipe
 )
 
 type Char struct {
@@ -118,7 +119,7 @@ func (s *Storage) pop() int {
 	var x int
 	var xs []int
 
-	if s.StorageType == SStack {
+	if s.StorageType == SStack || s.StorageType == SPipe {
 		x, xs = s.Memory[len(s.Memory)-1], s.Memory[:len(s.Memory)-1]
 		s.Memory = xs
 	} else {
@@ -130,11 +131,19 @@ func (s *Storage) pop() int {
 }
 
 func (s *Storage) push(val int) {
-	if s.StorageType == SStack {
+	if s.StorageType == SStack || s.StorageType == SPipe {
 		s.Memory = append(s.Memory, val)
 	} else {
 		s.Memory = append([]int{val}, s.Memory...)
 	}
+}
+
+func (s Storage) peek() int {
+	if s.StorageType == SStack || s.StorageType == SPipe {
+		return s.Memory[len(s.Memory)-1]
+	}
+
+	return s.Memory[0]
 }
 
 type Machine struct {
@@ -148,6 +157,7 @@ type Machine struct {
 
 var stacks []Storage
 var queue Storage
+var pipe Storage
 var machine Machine
 
 func init() {
@@ -162,6 +172,11 @@ func init() {
 
 	queue = Storage{
 		StorageType: SQueue,
+		Memory:      []int{},
+	}
+
+	pipe = Storage{
+		StorageType: SPipe,
 		Memory:      []int{},
 	}
 
@@ -208,7 +223,7 @@ func initCodespace(input string) [][]Char {
 	codeSpace := make([][]Char, len(lines))
 
 	for lineIdx, line := range lines {
-		codeSpace[lineIdx] = make([]Char, len(lines))
+		codeSpace[lineIdx] = make([]Char, len(line)/3)
 		for charIdx, char := range line {
 			// TODO: why is index multiple of 3? (e.g. 3,6,9,...)
 			codeSpace[lineIdx][charIdx/3] = makeChar(char)
@@ -218,7 +233,7 @@ func initCodespace(input string) [][]Char {
 	return codeSpace
 }
 
-func (m Machine) step(codeSpace [][]Char) int {
+func (m *Machine) step(codeSpace [][]Char) int {
 	currentChar := codeSpace[m.yPos][m.xPos]
 
 	switch currentChar.Lead {
@@ -279,13 +294,22 @@ func (m Machine) step(codeSpace [][]Char) int {
 			m.CurrentStorage.push(strokeCount[currentChar.Tail])
 		}
 
+	case 'ㅃ':
+		i := m.CurrentStorage.peek()
+		m.CurrentStorage.push(i)
+
+	case 'ㅍ':
+		a, b := m.CurrentStorage.pop(), m.CurrentStorage.pop()
+		m.CurrentStorage.push(b)
+		m.CurrentStorage.push(a)
+
 	case 'ㅅ':
 		switch currentChar.Tail {
 		case 'ㅇ':
 			m.CurrentStorage = queue
 			break
 		case 'ㅎ':
-			// TODO: pipe
+			m.CurrentStorage = pipe
 			break
 		default:
 			stackIdx := stackIndices[currentChar.Tail]
@@ -328,41 +352,73 @@ func (m Machine) step(codeSpace [][]Char) int {
 	switch currentChar.Vowel {
 	case 'ㅏ':
 		m.xPos += 1
+		// If out of bound, move to the other side
+		if m.xPos > len(codeSpace[0]) {
+			m.xPos = 0
+		}
 		m.dx = 1
 		m.dy = 0
 		break
 	case 'ㅓ':
 		m.xPos -= 1
+		// If out of bound, move to the other side
+		if m.xPos < 0 {
+			m.xPos = len(codeSpace[0])
+		}
 		m.dx = -1
 		m.dy = 0
 		break
 	case 'ㅜ':
 		m.yPos += 1
+		// If out of bound, move to the other side
+		if m.yPos > len(codeSpace) {
+			m.yPos = 0
+		}
 		m.dx = 0
 		m.dy = 1
 		break
 	case 'ㅗ':
 		m.yPos -= 1
+		// If out of bound, move to the other side
+		if m.yPos < 0 {
+			m.yPos = len(codeSpace)
+		}
 		m.dx = 0
 		m.dy = -1
 		break
 	case 'ㅑ':
 		m.xPos += 2
+		// If out of bound, move to the other side
+		if m.xPos > len(codeSpace[0]) {
+			m.xPos = 0
+		}
 		m.dx = 2
 		m.dy = 0
 		break
 	case 'ㅕ':
 		m.xPos -= 2
+		// If out of bound, move to the other side
+		if m.xPos < 0 {
+			m.xPos = len(codeSpace[0])
+		}
 		m.dx = -2
 		m.dy = 0
 		break
 	case 'ㅠ':
 		m.yPos += 2
+		// If out of bound, move to the other side
+		if m.yPos > len(codeSpace) {
+			m.yPos = 0
+		}
 		m.dx = 0
 		m.dy = 2
 		break
 	case 'ㅛ':
 		m.yPos -= 2
+		// If out of bound, move to the other side
+		if m.yPos < 0 {
+			m.yPos = len(codeSpace)
+		}
 		m.dx = 0
 		m.dy = -2
 		break
@@ -390,8 +446,11 @@ func (m Machine) step(codeSpace [][]Char) int {
 
 func (m Machine) run(codeSpace [][]Char) int {
 	var res int
-	if !m.terminated {
-		res = m.step(codeSpace)
+	var terminatedFlag bool = false
+
+	for !terminatedFlag {
+		m.step(codeSpace)
+		terminatedFlag = m.terminated
 	}
 
 	return res
@@ -399,6 +458,7 @@ func (m Machine) run(codeSpace [][]Char) int {
 
 func main() {
 	var codeSpace = initCodespace(helloWorld)
+	fmt.Printf("%+v\n", codeSpace)
 
 	machine.run(codeSpace)
 }
