@@ -1,10 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -101,6 +101,12 @@ type Char struct {
 	Tail  rune
 }
 
+func (c Char) isComplete() bool {
+	empty := rune(' ')
+
+	return c.Lead != empty && c.Vowel != empty
+}
+
 type Storage struct {
 	StorageType int
 	Memory      []int
@@ -170,16 +176,19 @@ func (m *Machine) moveCursor() {
 	m.xPos += m.dx
 	m.yPos += m.dy
 
-	if m.xPos > len(m.Codespace[0]) {
-		m.xPos = m.dx
+	xMaxPos := len(m.Codespace[0])
+	yMaxPos := len(m.Codespace)
+
+	if m.xPos > xMaxPos {
+		m.xPos = m.xPos - xMaxPos
 	} else if m.xPos < 0 {
-		m.xPos = len(m.Codespace[0]) - m.dx
+		m.xPos = xMaxPos - m.dx
 	}
 
-	if m.yPos > len(m.Codespace) {
-		m.yPos = m.dy
+	if m.yPos > yMaxPos {
+		m.yPos = m.yPos - yMaxPos
 	} else if m.yPos < 0 {
-		m.yPos = len(m.Codespace) - m.dy
+		m.yPos = yMaxPos - m.dy
 	}
 }
 
@@ -187,9 +196,13 @@ var stacks []Storage
 var queue Storage
 var pipe Storage
 var KOREAN_OFFSET rune = 0xAC00
+var DEBUG string
 
 // Initialize stacks, queue, and pipe
 func init() {
+	// Set debug flag
+	DEBUG, _ = os.LookupEnv("DEBUG")
+
 	for i := 0; i < 26; i++ {
 		stack := Storage{
 			StorageType: SStack,
@@ -218,6 +231,14 @@ func validateAheuiChar(c rune) bool {
 // makeChar deconstructs the rune corresponding to the Korean alphabet
 // into lead, vowel, and tail sounds, and returns Char
 func makeChar(c rune) Char {
+	if !validateAheuiChar(c) {
+		return Char{
+			Lead:  rune(' '),
+			Vowel: rune(' '),
+			Tail:  rune(' '),
+		}
+	}
+
 	codeNum := c - KOREAN_OFFSET
 
 	tailNum := codeNum % 28
@@ -226,11 +247,10 @@ func makeChar(c rune) Char {
 
 	lead := leadSounds[leadNum]
 	vowel := vowelSounds[vowelNum]
-	var tail rune
+
+	tail := rune(' ')
 	if tailNum > 0 {
 		tail = tailSounds[tailNum]
-	} else {
-		tail = 0
 	}
 
 	return Char{
@@ -240,21 +260,28 @@ func makeChar(c rune) Char {
 	}
 }
 
+func sanitizeCode(code string) string {
+	reg := regexp.MustCompile("\n$")
+	res := reg.ReplaceAllString(code, "")
+
+	return strings.Trim(res, " ")
+}
+
 // initCodespace returns a CodeSpace based on the code string
 func initCodespace(code string) ([][]Char, error) {
-	lines := strings.Split(code, "\n")
-
+	lines := strings.Split(sanitizeCode(code), "\n")
 	codeSpace := make([][]Char, len(lines))
 
 	for lineIdx, line := range lines {
 		codeSpace[lineIdx] = make([]Char, len(line)/3)
 		for charIdx, char := range line {
 			// WHY: why is index multiple of 3? (e.g. 3,6,9,...)
-			if !validateAheuiChar(char) {
-				return codeSpace, errors.New(fmt.Sprintf("Invalid character at %d, %d", lineIdx, charIdx/3))
-			}
 			codeSpace[lineIdx][charIdx/3] = makeChar(char)
 		}
+	}
+
+	if DEBUG != "" {
+		fmt.Printf("%+v", codeSpace)
 	}
 
 	return codeSpace, nil
@@ -263,6 +290,11 @@ func initCodespace(code string) ([][]Char, error) {
 // step evaluates the current Character and moves the cursor accordingly
 func (m *Machine) step() int {
 	currentChar := m.Codespace[m.yPos][m.xPos]
+
+	if !currentChar.isComplete() {
+		m.moveCursor()
+		return 0
+	}
 
 	switch currentChar.Vowel {
 	case 'ㅏ':
@@ -291,17 +323,15 @@ func (m *Machine) step() int {
 		m.dy = -2
 	case 'ㅡ':
 		if m.dy != 0 {
-			m.reverseCursorX()
+			m.reverseCursorY()
 			break
 		}
 	case 'ㅣ':
 		if m.dx != 0 {
-			m.reverseCursorY()
-			break
+			m.reverseCursorX()
 		}
 	case 'ㅢ':
 		m.reverseCursor()
-		break
 	default:
 		//noop
 	}
@@ -313,8 +343,8 @@ func (m *Machine) step() int {
 	case 'ㅎ':
 		m.terminated = true
 
-		if len(m.CurrentStorage.Memory) > 0 {
-			popped, _ := m.CurrentStorage.pop()
+		popped, ok := m.CurrentStorage.pop()
+		if ok {
 			return popped
 		}
 
@@ -529,16 +559,23 @@ func (m *Machine) run(code string) (int, error) {
 
 // readFile reads the content of a file as string
 func readFile(filepath string) (string, error) {
-	b, err := ioutil.ReadFile(filepath)
+	buf, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return "", err
 	}
 
-	return string(b), nil
+	return string(buf), nil
 }
 
 func main() {
+	_ = makeChar('ㅂ')
+	if len(os.Args) < 2 {
+		fmt.Println("Please provide filepath")
+		os.Exit(1)
+	}
+
 	filepath := os.Args[1]
+
 	content, err := readFile(filepath)
 
 	if err != nil {
@@ -554,5 +591,10 @@ func main() {
 		terminated:     false,
 	}
 
-	machine.run(content)
+	res, err := machine.run(content)
+	if err != nil {
+		panic(err)
+	}
+
+	os.Exit(res)
 }
