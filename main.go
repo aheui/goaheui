@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -100,9 +101,6 @@ type Char struct {
 	Tail  rune
 }
 
-var storages []Storage
-var KOREAN_OFFSET rune = 0xAC00
-
 type Storage struct {
 	StorageType int
 	Memory      []int
@@ -161,11 +159,13 @@ func (m *Machine) reverseCursorY() {
 	m.dy = -m.dy
 }
 
+// reverseCursor reverses the direction of the momentum
 func (m *Machine) reverseCursor() {
 	m.reverseCursorX()
 	m.reverseCursorY()
 }
 
+// moveCursor updates the position of the cursor based on the current 'momentum'
 func (m *Machine) moveCursor() {
 	m.xPos += m.dx
 	m.yPos += m.dy
@@ -186,8 +186,9 @@ func (m *Machine) moveCursor() {
 var stacks []Storage
 var queue Storage
 var pipe Storage
-var machine Machine
+var KOREAN_OFFSET rune = 0xAC00
 
+// Initialize stacks, queue, and pipe
 func init() {
 	for i := 0; i < 26; i++ {
 		stack := Storage{
@@ -207,21 +208,15 @@ func init() {
 		StorageType: SPipe,
 		Memory:      []int{},
 	}
-
-	machine = Machine{
-		CurrentStorage: &stacks[0],
-		xPos:           0,
-		yPos:           0,
-		dx:             0,
-		dy:             1,
-		terminated:     false,
-	}
 }
 
+// validateAheuiChar checks if a rune is a valid Aheui character
 func validateAheuiChar(c rune) bool {
 	return c >= 0xAC00 && c <= 0xD7A3
 }
 
+// makeChar deconstructs the rune corresponding to the Korean alphabet
+// into lead, vowel, and tail sounds, and returns Char
 func makeChar(c rune) Char {
 	codeNum := c - KOREAN_OFFSET
 
@@ -245,8 +240,9 @@ func makeChar(c rune) Char {
 	}
 }
 
-func initCodespace(input string) [][]Char {
-	lines := strings.Split(input, "\n")
+// initCodespace returns a CodeSpace based on the code string
+func initCodespace(code string) ([][]Char, error) {
+	lines := strings.Split(code, "\n")
 
 	codeSpace := make([][]Char, len(lines))
 
@@ -254,13 +250,17 @@ func initCodespace(input string) [][]Char {
 		codeSpace[lineIdx] = make([]Char, len(line)/3)
 		for charIdx, char := range line {
 			// WHY: why is index multiple of 3? (e.g. 3,6,9,...)
+			if !validateAheuiChar(char) {
+				return codeSpace, errors.New(fmt.Sprintf("Invalid character at %d, %d", lineIdx, charIdx/3))
+			}
 			codeSpace[lineIdx][charIdx/3] = makeChar(char)
 		}
 	}
 
-	return codeSpace
+	return codeSpace, nil
 }
 
+// step evaluates the current Character and moves the cursor accordingly
 func (m *Machine) step() int {
 	currentChar := m.Codespace[m.yPos][m.xPos]
 
@@ -508,28 +508,51 @@ func (m *Machine) step() int {
 	return 0
 }
 
-func (m *Machine) run(codeSpace [][]Char) int {
+func (m *Machine) run(code string) (int, error) {
+	codeSpace, err := initCodespace(code)
+	if err != nil {
+		return 0, err
+	}
+
 	m.Codespace = codeSpace
+
 	var res int
-	var terminatedFlag bool = false
+	terminatedFlag := false
 
 	for !terminatedFlag {
-		m.step()
+		res = m.step()
 		terminatedFlag = m.terminated
 	}
 
-	return res
+	return res, nil
+}
+
+// readFile reads the content of a file as string
+func readFile(filepath string) (string, error) {
+	b, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
 
 func main() {
 	filepath := os.Args[1]
-	b, err := ioutil.ReadFile(filepath)
+	content, err := readFile(filepath)
+
 	if err != nil {
 		panic(err)
 	}
 
-	content := string(b)
-	var codeSpace = initCodespace(content)
+	machine := Machine{
+		CurrentStorage: &stacks[0],
+		xPos:           0,
+		yPos:           0,
+		dx:             0,
+		dy:             1,
+		terminated:     false,
+	}
 
-	machine.run(codeSpace)
+	machine.run(content)
 }
