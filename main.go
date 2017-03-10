@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -86,15 +88,6 @@ var tailSounds = []rune{
 	'ㅌ', 'ㅍ', 'ㅎ',
 }
 
-var helloWorld = `밤밣따빠밣밟따뿌
-빠맣파빨받밤뚜뭏
-돋밬탕빠맣붏두붇
-볻뫃박발뚷투뭏붖
-뫃도뫃희멓뭏뭏붘
-뫃봌토범더벌뿌뚜
-뽑뽀멓멓더벓뻐뚠
-뽀덩벐멓뻐덕더벅`
-
 const (
 	SStack = iota
 	SQueue
@@ -151,12 +144,43 @@ func (s Storage) peek() int {
 }
 
 type Machine struct {
-	CurrentStorage Storage
+	Codespace      [][]Char
+	CurrentStorage *Storage
 	xPos           int
 	yPos           int
 	dx             int
 	dy             int
 	terminated     bool
+}
+
+func (m *Machine) reverseCursorX() {
+	m.dx = -m.dx
+}
+
+func (m *Machine) reverseCursorY() {
+	m.dy = -m.dy
+}
+
+func (m *Machine) reverseCursor() {
+	m.reverseCursorX()
+	m.reverseCursorY()
+}
+
+func (m *Machine) moveCursor() {
+	m.xPos += m.dx
+	m.yPos += m.dy
+
+	if m.xPos > len(m.Codespace[0]) {
+		m.xPos = m.dx
+	} else if m.xPos < 0 {
+		m.xPos = len(m.Codespace[0]) - m.dx
+	}
+
+	if m.yPos > len(m.Codespace) {
+		m.yPos = m.dy
+	} else if m.yPos < 0 {
+		m.yPos = len(m.Codespace) - m.dy
+	}
 }
 
 var stacks []Storage
@@ -185,7 +209,7 @@ func init() {
 	}
 
 	machine = Machine{
-		CurrentStorage: stacks[0],
+		CurrentStorage: &stacks[0],
 		xPos:           0,
 		yPos:           0,
 		dx:             0,
@@ -237,8 +261,50 @@ func initCodespace(input string) [][]Char {
 	return codeSpace
 }
 
-func (m *Machine) step(codeSpace [][]Char) int {
-	currentChar := codeSpace[m.yPos][m.xPos]
+func (m *Machine) step() int {
+	currentChar := m.Codespace[m.yPos][m.xPos]
+
+	switch currentChar.Vowel {
+	case 'ㅏ':
+		m.dx = 1
+		m.dy = 0
+	case 'ㅓ':
+		m.dx = -1
+		m.dy = 0
+	case 'ㅜ':
+		m.dx = 0
+		m.dy = 1
+	case 'ㅗ':
+		m.dx = 0
+		m.dy = -1
+	case 'ㅑ':
+		m.dx = 2
+		m.dy = 0
+	case 'ㅕ':
+		m.dx = -2
+		m.dy = 0
+	case 'ㅠ':
+		m.dx = 0
+		m.dy = 2
+	case 'ㅛ':
+		m.dx = 0
+		m.dy = -2
+	case 'ㅡ':
+		if m.dy != 0 {
+			m.reverseCursorX()
+			break
+		}
+	case 'ㅣ':
+		if m.dx != 0 {
+			m.reverseCursorY()
+			break
+		}
+	case 'ㅢ':
+		m.reverseCursor()
+		break
+	default:
+		//noop
+	}
 
 	switch currentChar.Lead {
 	case 'ㅇ':
@@ -256,14 +322,12 @@ func (m *Machine) step(codeSpace [][]Char) int {
 	case 'ㄷ':
 		a, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
@@ -272,14 +336,12 @@ func (m *Machine) step(codeSpace [][]Char) int {
 	case 'ㄸ':
 		a, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
@@ -288,56 +350,49 @@ func (m *Machine) step(codeSpace [][]Char) int {
 	case 'ㄴ':
 		a, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
-		m.CurrentStorage.push(a / b)
+		m.CurrentStorage.push(b / a)
 		break
 	case 'ㅌ':
 		a, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
-		m.CurrentStorage.push(a - b)
+		m.CurrentStorage.push(b - a)
 		break
 	case 'ㄹ':
 		a, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
-		m.CurrentStorage.push(a % b)
+		m.CurrentStorage.push(b % a)
 		break
 	case 'ㅁ':
 		popped, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
@@ -371,38 +426,35 @@ func (m *Machine) step(codeSpace [][]Char) int {
 	case 'ㅍ':
 		a, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
-		m.CurrentStorage.push(b)
 		m.CurrentStorage.push(a)
+		m.CurrentStorage.push(b)
 
 	case 'ㅅ':
 		switch currentChar.Tail {
 		case 'ㅇ':
-			m.CurrentStorage = queue
+			m.CurrentStorage = &queue
 			break
 		case 'ㅎ':
-			m.CurrentStorage = pipe
+			m.CurrentStorage = &pipe
 			break
 		default:
 			stackIdx := stackIndices[currentChar.Tail]
-			m.CurrentStorage = stacks[stackIdx]
+			m.CurrentStorage = &stacks[stackIdx]
 		}
 
 	case 'ㅆ':
 		popped, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
@@ -421,14 +473,12 @@ func (m *Machine) step(codeSpace [][]Char) int {
 	case 'ㅈ':
 		a, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
@@ -444,118 +494,27 @@ func (m *Machine) step(codeSpace [][]Char) int {
 	case 'ㅊ':
 		popped, ok := m.CurrentStorage.pop()
 		if !ok {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 			break
 		}
 
 		if popped == 0 {
-			m.dy = -m.dy
-			m.dx = -m.dx
+			m.reverseCursor()
 		}
 	}
 
-	switch currentChar.Vowel {
-	case 'ㅏ':
-		m.xPos += 1
-		// If out of bound, move to the other side
-		if m.xPos > len(codeSpace[0]) {
-			m.xPos = 0
-		}
-		m.dx = 1
-		m.dy = 0
-		break
-	case 'ㅓ':
-		m.xPos -= 1
-		// If out of bound, move to the other side
-		if m.xPos < 0 {
-			m.xPos = len(codeSpace[0])
-		}
-		m.dx = -1
-		m.dy = 0
-		break
-	case 'ㅜ':
-		m.yPos += 1
-		// If out of bound, move to the other side
-		if m.yPos > len(codeSpace) {
-			m.yPos = 0
-		}
-		m.dx = 0
-		m.dy = 1
-		break
-	case 'ㅗ':
-		m.yPos -= 1
-		// If out of bound, move to the other side
-		if m.yPos < 0 {
-			m.yPos = len(codeSpace)
-		}
-		m.dx = 0
-		m.dy = -1
-		break
-	case 'ㅑ':
-		m.xPos += 2
-		// If out of bound, move to the other side
-		if m.xPos > len(codeSpace[0]) {
-			m.xPos = 0
-		}
-		m.dx = 2
-		m.dy = 0
-		break
-	case 'ㅕ':
-		m.xPos -= 2
-		// If out of bound, move to the other side
-		if m.xPos < 0 {
-			m.xPos = len(codeSpace[0])
-		}
-		m.dx = -2
-		m.dy = 0
-		break
-	case 'ㅠ':
-		m.yPos += 2
-		// If out of bound, move to the other side
-		if m.yPos > len(codeSpace) {
-			m.yPos = 0
-		}
-		m.dx = 0
-		m.dy = 2
-		break
-	case 'ㅛ':
-		m.yPos -= 2
-		// If out of bound, move to the other side
-		if m.yPos < 0 {
-			m.yPos = len(codeSpace)
-		}
-		m.dx = 0
-		m.dy = -2
-		break
-	case 'ㅡ':
-		if m.dy != 0 {
-			m.yPos = m.yPos - m.dy
-			m.dy = -m.dy
-		}
-	case 'ㅣ':
-		if m.dx != 0 {
-			m.xPos = m.xPos - m.dx
-			m.dx = -m.dx
-		}
-	case 'ㅢ':
-		m.xPos = m.xPos - m.dx
-		m.yPos = m.yPos - m.dy
-		m.dy = -m.dy
-		m.dx = -m.dx
-	default:
-		//noop
-	}
+	m.moveCursor()
 
 	return 0
 }
 
-func (m Machine) run(codeSpace [][]Char) int {
+func (m *Machine) run(codeSpace [][]Char) int {
+	m.Codespace = codeSpace
 	var res int
 	var terminatedFlag bool = false
 
 	for !terminatedFlag {
-		m.step(codeSpace)
+		m.step()
 		terminatedFlag = m.terminated
 	}
 
@@ -563,7 +522,14 @@ func (m Machine) run(codeSpace [][]Char) int {
 }
 
 func main() {
-	var codeSpace = initCodespace(helloWorld)
+	filepath := os.Args[1]
+	b, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		panic(err)
+	}
+
+	content := string(b)
+	var codeSpace = initCodespace(content)
 
 	machine.run(codeSpace)
 }
