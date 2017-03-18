@@ -139,12 +139,16 @@ func (s *Storage) push(val int) {
 	}
 }
 
-func (s Storage) peek() int {
-	if s.StorageType == SStack || s.StorageType == SPipe {
-		return s.Memory[len(s.Memory)-1]
+func (s Storage) peek() (int, bool) {
+	if len(s.Memory) == 0 {
+		return 0, false
 	}
 
-	return s.Memory[0]
+	if s.StorageType == SStack || s.StorageType == SPipe {
+		return s.Memory[len(s.Memory)-1], true
+	}
+
+	return s.Memory[0], true
 }
 
 type Machine struct {
@@ -176,19 +180,20 @@ func (m *Machine) moveCursor() {
 	m.xPos += m.dx
 	m.yPos += m.dy
 
-	xMaxPos := len(m.Codespace[0])
-	yMaxPos := len(m.Codespace)
+	// subtract 1 as a position is a 0-based index
+	xMaxPos := len(m.Codespace[m.yPos]) - 1
+	yMaxPos := len(m.Codespace) - 1
 
 	if m.xPos > xMaxPos {
-		m.xPos = m.xPos - xMaxPos
+		m.xPos = m.xPos - xMaxPos - 1
 	} else if m.xPos < 0 {
-		m.xPos = xMaxPos - m.dx
+		m.xPos = xMaxPos + m.xPos + 1
 	}
 
 	if m.yPos > yMaxPos {
-		m.yPos = m.yPos - yMaxPos
+		m.yPos = m.yPos - yMaxPos - 1
 	} else if m.yPos < 0 {
-		m.yPos = yMaxPos - m.dy
+		m.yPos = yMaxPos + m.yPos + 1
 	}
 }
 
@@ -289,7 +294,9 @@ func initCodespace(code string) ([][]Char, error) {
 
 // step evaluates the current Character and moves the cursor accordingly
 func (m *Machine) step() int {
+	//_ = "breakpoint"
 	currentChar := m.Codespace[m.yPos][m.xPos]
+	//fmt.Printf("Currently (%c) x: %d, y: %d\n", currentChar, m.xPos, m.yPos)
 
 	if !currentChar.isComplete() {
 		m.moveCursor()
@@ -322,14 +329,9 @@ func (m *Machine) step() int {
 		m.dx = 0
 		m.dy = -2
 	case 'ㅡ':
-		if m.dy != 0 {
-			m.reverseCursorY()
-			break
-		}
+		m.reverseCursorY()
 	case 'ㅣ':
-		if m.dx != 0 {
-			m.reverseCursorX()
-		}
+		m.reverseCursorX()
 	case 'ㅢ':
 		m.reverseCursor()
 	default:
@@ -357,6 +359,7 @@ func (m *Machine) step() int {
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
+			m.CurrentStorage.push(a)
 			m.reverseCursor()
 			break
 		}
@@ -371,6 +374,7 @@ func (m *Machine) step() int {
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
+			m.CurrentStorage.push(a)
 			m.reverseCursor()
 			break
 		}
@@ -385,6 +389,7 @@ func (m *Machine) step() int {
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
+			m.CurrentStorage.push(a)
 			m.reverseCursor()
 			break
 		}
@@ -399,6 +404,7 @@ func (m *Machine) step() int {
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
+			m.CurrentStorage.push(a)
 			m.reverseCursor()
 			break
 		}
@@ -413,6 +419,7 @@ func (m *Machine) step() int {
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
+			m.CurrentStorage.push(a)
 			m.reverseCursor()
 			break
 		}
@@ -430,6 +437,7 @@ func (m *Machine) step() int {
 		case 'ㅇ':
 			fmt.Printf("%d", popped)
 		case 'ㅎ':
+			//_ = "breakpoint"
 			fmt.Printf("%s", string(popped))
 		}
 
@@ -450,9 +458,13 @@ func (m *Machine) step() int {
 		}
 
 	case 'ㅃ':
-		i := m.CurrentStorage.peek()
-		m.CurrentStorage.push(i)
+		i, ok := m.CurrentStorage.peek()
+		if !ok {
+			m.reverseCursor()
+			break
+		}
 
+		m.CurrentStorage.push(i)
 	case 'ㅍ':
 		a, ok := m.CurrentStorage.pop()
 		if !ok {
@@ -461,6 +473,7 @@ func (m *Machine) step() int {
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
+			m.CurrentStorage.push(a)
 			m.reverseCursor()
 			break
 		}
@@ -508,12 +521,13 @@ func (m *Machine) step() int {
 		}
 		b, ok := m.CurrentStorage.pop()
 		if !ok {
+			m.CurrentStorage.push(a)
 			m.reverseCursor()
 			break
 		}
 
 		var res int
-		if b > a {
+		if b >= a {
 			res = 1
 		} else {
 			res = 0
@@ -568,16 +582,13 @@ func readFile(filepath string) (string, error) {
 }
 
 func main() {
-	_ = makeChar('ㅂ')
 	if len(os.Args) < 2 {
-		fmt.Println("Please provide filepath")
+		fmt.Println("Please provide filepath.")
 		os.Exit(1)
 	}
 
 	filepath := os.Args[1]
-
 	content, err := readFile(filepath)
-
 	if err != nil {
 		panic(err)
 	}
